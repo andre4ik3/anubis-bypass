@@ -1,0 +1,23 @@
+{
+    "manifest_version": 2,
+    "name": "Anubis Bypass",
+    "version": "1.0",
+    "description": "Bypasses Anubis DDoS protection.",
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "anubis-bypass@zipdox.net"
+        }
+    },
+    "permissions": [
+        "webRequest",
+        "webRequestBlocking",
+        "https://*/*",
+        "storage"
+    ],
+    "background": {
+        "scripts": [
+            "background.js"
+        ],
+        "persistent": true
+    }
+}
