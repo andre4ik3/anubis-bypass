@@ -20,7 +20,7 @@ async function receivedHeaders(details) {
         return header.name.toLowerCase() == 'set-cookie';
     });
     if (!cookies) return;
-    if (!cookies.value.includes('x-cmd-anubis-auth')) return;
+    if (!cookies.value.includes('-anubis-')) return;
     await addHost(url.host);
     return { redirectUrl: details.url };
 }
