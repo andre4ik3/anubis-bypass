@@ -1,7 +1,7 @@
 {
     "manifest_version": 2,
     "name": "Anubis Bypass",
-    "version": "1.2",
+    "version": "1.3",
     "description": "Bypasses Anubis DDoS protection.",
     "browser_specific_settings": {
         "gecko": {

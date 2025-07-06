@@ -30,7 +30,7 @@ function sentHeaders(details) {
     if (!hosts.has(url.host)) return;
     for (const header of details.requestHeaders) {
         if (header.name.toLowerCase() != 'user-agent') continue;
-        header.value = 'anubis is crap';
+        header.value = 'Browser';
     }
     return { requestHeaders: details.requestHeaders };
 }
