@@ -13,6 +13,11 @@ async function addHost(host) {
     });
 }
 
+browser.runtime.onMessage.addListener(async (host) => {
+    console.info('Adding', host, 'to hosts');
+    await addHost(host);
+});
+
 async function receivedHeaders(details) {
     const url = new URL(details.url)
     if (hosts.has(url.host)) return;
