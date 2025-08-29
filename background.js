@@ -30,12 +30,27 @@ async function receivedHeaders(details) {
     return { redirectUrl: details.url };
 }
 
+function generateUserAgent() {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const length = Math.round(Math.random() * 16) + 16;
+    let agent = '';
+    for(let i = 0; i < length; i++){
+        if(Math.random() > 0.8){
+            agent += ' ';
+            continue;
+        }
+        agent += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    if(agent.toLowerCase().includes('bot')) return generateUserAgent();
+    return agent;
+}
+
 function sentHeaders(details) {
     const url = new URL(details.url);
     if (!hosts.has(url.host)) return;
     for (const header of details.requestHeaders) {
         if (header.name.toLowerCase() != 'user-agent') continue;
-        header.value = 'Browser';
+        header.value = generateUserAgent();
     }
     return { requestHeaders: details.requestHeaders };
 }
