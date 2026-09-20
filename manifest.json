@@ -1,17 +1,27 @@
 {
   "name": "Anubis Bypass",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Bypasses Anubis DDoS protection.",
   "manifest_version": 3,
-  "permissions": ["declarativeNetRequestWithHostAccess", "webRequest"],
+  "permissions": ["declarativeNetRequestWithHostAccess", "webRequest", "webRequestBlocking"],
   "host_permissions": ["*://*/*"],
   "browser_specific_settings": {
     "gecko": {
-      "id": "anubis-bypass@andre4ik3.dev"
+      "id": "anubis-bypass@andre4ik3.dev",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "background": {
     "service_worker": "background.js",
     "scripts": ["background.js"]
-  }
+  },
+  "incognito": "split",
+  "web_accessible_resources": [
+    {
+      "matches": ["*://*/*"],
+      "resources": ["/blocked.html"]
+    }
+  ]
 }

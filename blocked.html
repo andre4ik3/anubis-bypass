@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+    :root {
+      --background: #000000;
+      --text: #ffffff;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --background: #ffffff;
+        --text: #000000;
+      }
+    }
+
+    body {
+      background: var(--background);
+      color: var(--text);
+
+      /*
+         Most of the time, the retry request goes through quick enough that you don't see anything.
+
+         But some sites (cough GitLab instances cough) are slow enough that we should probably display at least
+           *something* to the user so they don't just stare at a blank page.
+       */
+      animation: fade 0.25s ease-in 1s forwards;
+      opacity: 0;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    Please wait...
+  </body>
+</html>
