@@ -1,34 +1,17 @@
 {
-    "manifest_version": 2,
-    "name": "Anubis Bypass",
-    "version": "1.5",
-    "description": "Bypasses Anubis DDoS protection.",
-    "browser_specific_settings": {
-        "gecko": {
-            "id": "anubis-bypass@zipdox.net"
-        }
-    },
-    "permissions": [
-        "webRequest",
-        "webRequestBlocking",
-        "https://*/*",
-        "storage"
-    ],
-    "background": {
-        "scripts": [
-            "background.js"
-        ],
-        "persistent": true
-    },
-    "content_scripts": [
-        {
-            "matches": [
-                "<all_urls>"
-            ],
-            "js": [
-                "scan.js"
-            ],
-            "run_at": "document_end"
-        }
-    ]
+  "name": "Anubis Bypass",
+  "version": "2.0.0",
+  "description": "Bypasses Anubis DDoS protection.",
+  "manifest_version": 3,
+  "permissions": ["declarativeNetRequestWithHostAccess", "webRequest"],
+  "host_permissions": ["*://*/*"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "anubis-bypass@andre4ik3.dev"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  }
 }

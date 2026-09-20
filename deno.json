@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "webext-types": "npm:@types/firefox-webext-browser"
+  },
+  "compilerOptions": {
+    "types": ["webext-types"],
+    "lib": ["esnext", "dom", "dom.iterable"]
+  },
+  "fmt": {
+    "lineWidth": 120
+  }
+}
