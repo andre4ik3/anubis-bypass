@@ -7,14 +7,14 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   attestations: write
+  artifact-metadata: write
 
 jobs:
   build-chromium:
     name: "Build Chromium"
     runs-on: ubuntu-latest
-
     environment: "Release"
 
     steps:
@@ -39,10 +39,6 @@ jobs:
 
           mv "$src.crx" "extension.crx"
 
-      - uses: actions/attest@v4
-        with:
-          subject-path: extension.crx
-
       - uses: actions/upload-artifact@v7
         with:
           path: extension.crx
@@ -51,7 +47,6 @@ jobs:
   build-mozilla:
     name: "Build Mozilla"
     runs-on: ubuntu-latest
-
     environment: "Release"
 
     steps:
@@ -79,11 +74,33 @@ jobs:
 
           mv "$out"/*.xpi "extension.xpi"
 
-      - uses: actions/attest@v4
-        with:
-          subject-path: extension.xpi
-
       - uses: actions/upload-artifact@v7
         with:
           path: extension.xpi
           archive: false
+
+  release:
+    name: "Release"
+
+    needs:
+      - build-chromium
+      - build-mozilla
+
+    runs-on: ubuntu-latest
+    environment: "Release"
+
+    steps:
+      - uses: actions/download-artifact@v8
+
+      - id: attest
+        uses: actions/attest@v4
+
+      - name: "Copy attestation bundle"
+        run: cp ${{ steps.attest.outputs.bundle-path }} attestation.json
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            extension.crx
+            extension.xpi
+            attestation.json
