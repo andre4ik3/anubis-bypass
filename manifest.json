@@ -1,6 +1,6 @@
 {
   "name": "Anubis Bypass",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Bypasses Anubis DDoS protection.",
   "manifest_version": 3,
   "permissions": ["declarativeNetRequestWithHostAccess", "webRequest", "webRequestBlocking"],

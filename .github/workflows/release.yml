@@ -39,12 +39,25 @@ jobs:
 
           mv "$src.crx" "extension.crx"
 
-      - uses: actions/upload-artifact@v7
+      - name: "Upload extension"
+        uses: actions/upload-artifact@v7
         with:
           path: extension.crx
           archive: false
 
-      - uses: actions/attest@v4
+      - id: attest
+        uses: actions/attest@v4
+        with:
+          subject-path: extension.crx
+
+      - name: "Copy attestation"
+        run: 'cp "${{ steps.attest.outputs.bundle-path }}" "extension.crx.json"'
+
+      - name: "Upload attestation"
+        uses: actions/upload-artifact@v7
+        with:
+          path: extension.crx.json
+          archive: false
 
   build-mozilla:
     name: "Build Mozilla"
@@ -76,12 +89,25 @@ jobs:
 
           mv "$out"/*.xpi "extension.xpi"
 
-      - uses: actions/upload-artifact@v7
+      - name: "Upload extension"
+        uses: actions/upload-artifact@v7
         with:
           path: extension.xpi
           archive: false
 
-      - uses: actions/attest@v4
+      - id: attest
+        uses: actions/attest@v4
+        with:
+          subject-path: extension.xpi
+
+      - name: "Copy attestation"
+        run: 'cp "${{ steps.attest.outputs.bundle-path }}" "extension.xpi.json"'
+
+      - name: "Upload attestation"
+        uses: actions/upload-artifact@v7
+        with:
+          path: extension.xpi.json
+          archive: false
 
   release:
     name: "Release"
@@ -98,3 +124,5 @@ jobs:
           files: |
             extension.crx/extension.crx
             extension.xpi/extension.xpi
+            extension.crx.json/extension.crx.json
+            extension.xpi.json/extension.xpi.json
