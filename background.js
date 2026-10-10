@@ -41,120 +41,122 @@ function hash(str) {
     out ^= str.charCodeAt(i);
     out = Math.imul(out, 0x01000193);
   }
-  return (out & 0x7FFFFFFF) || 1;
+  return Math.max(2, out & 0x7FFFFFFF);
 }
 
-/** @param {string} host */
-async function hasHost(host) {
-  const rules = await browser.declarativeNetRequest.getSessionRules();
-  return rules.some((rule) => rule.condition.requestDomains?.includes(host));
-}
+/** @type {Map<string, Promise<boolean>>} */
+const pendingOrigins = new Map();
 
-/** @param {string} host */
-async function addHost(host) {
-  if (await hasHost(host)) return;
+/** @param {string} origin */
+function addOrigin(origin) {
+  const pending = pendingOrigins.get(origin);
+  if (pending) return pending;
 
-  const agent = generateUserAgent();
-  const condition = {
-    requestDomains: [host],
-    resourceTypes: Object.values(browser.declarativeNetRequest.ResourceType),
-  };
+  const update = (async () => {
+    const rules = await browser.declarativeNetRequest.getSessionRules();
+    const urlFilter = `|${origin}/`;
+    if (rules.some((rule) => rule.condition.urlFilter === urlFilter)) return false;
 
-  console.info(`Adding ${host} to hosts: ${agent}`);
+    const agent = generateUserAgent();
+    /** @type {browser.declarativeNetRequest.Rule["condition"]} */
+    const condition = {
+      urlFilter,
+      resourceTypes: [
+        "main_frame",
+        "sub_frame",
+        "stylesheet",
+        "script",
+        "image",
+        "font",
+        "object",
+        "xmlhttprequest",
+        "ping",
+        "csp_report",
+        "media",
+        "websocket",
+        "other",
+      ],
+    };
 
-  await browser.declarativeNetRequest.updateSessionRules({
-    addRules: [
-      // In matching precedence, higher priority gets evaluated first
-      // An "allow" rule is basically an instant short-circuit, so the headers modification comes first
-      {
-        id: hash(`${host}/modify`),
-        priority: 3,
-        condition,
-        action: {
-          type: "modifyHeaders",
-          requestHeaders: [{
-            header: "user-agent",
-            operation: "set",
-            value: agent,
-          }],
-        },
-      },
-      {
-        id: hash(`${host}/allow`),
-        priority: 2,
-        condition,
-        action: { type: "allow" },
-      },
-    ],
-  });
-}
-
-(async () => {
-  // Chromium needs "extraHeaders" to let us read Set-Cookie, Mozilla doesn't and doesn't allow unknown enum cases
-  /** @type {browser.webRequest.OnHeadersReceivedOptions[]} */
-  const extraInfoSpec = ["responseHeaders"];
-  if (browser.webRequest.OnHeadersReceivedOptions?.EXTRA_HEADERS) {
-    extraInfoSpec.push("extraHeaders");
-  }
-
-  // Clear any existing session rules we have
-  const rules = await browser.declarativeNetRequest.getSessionRules();
-  await browser.declarativeNetRequest.updateSessionRules({ removeRuleIds: rules.map((r) => r.id) });
-
-  // To prevent the actual challenge page from loading (and the browser accepting cookies and starting to solve it), we
-  // redirect to a blocked page while we add the DNR rule to modify the UA in the background.
-  // The way to add such a rule, however, depends on the browser...
-
-  if (browser.declarativeNetRequest.RuleConditionKeys?.RESPONSE_HEADERS) {
-    // yep, mozilla does not support this
-    console.info("Using DNR with redirect action (this is probably Chromium)");
+    console.info(`Adding ${origin} to origins: ${agent}`);
     await browser.declarativeNetRequest.updateSessionRules({
+      addRules: [
+        {
+          id: hash(`${origin}/modify`),
+          priority: 3,
+          condition,
+          action: {
+            type: "modifyHeaders",
+            requestHeaders: [{ header: "user-agent", operation: "set", value: agent }],
+          },
+        },
+        {
+          id: hash(`${origin}/allow`),
+          priority: 2,
+          condition,
+          action: { type: "allow" },
+        },
+      ],
+    });
+    return true;
+  })().finally(() => pendingOrigins.delete(origin));
+  pendingOrigins.set(origin, update);
+  return update;
+}
+
+if (!browser.runtime.getBrowserInfo) {
+  // Register synchronously so a message can wake a suspended Chromium worker.
+  browser.runtime.onMessage.addListener(async (message, sender) => {
+    const blockedURL = browser.runtime.getURL("blocked.html");
+    if (sender.id !== browser.runtime.id || !sender.url?.startsWith(`${blockedURL}#`)) return;
+    if (typeof message?.url !== "string" || message.url !== sender.url.slice(blockedURL.length + 1)) {
+      throw new Error("Invalid retry URL");
+    }
+    const url = new URL(message.url);
+    if (!["http:", "https:"].includes(url.protocol)) throw new Error("Invalid retry protocol");
+    await addOrigin(url.origin);
+    return true;
+  });
+
+  // Session rules survive worker suspension. Never clear the learned origins on wake-up.
+  browser.declarativeNetRequest.getSessionRules().then((rules) => {
+    if (rules.some((rule) => rule.id === 1)) return;
+    return browser.declarativeNetRequest.updateSessionRules({
       addRules: [{
         id: 1,
         condition: {
+          regexFilter: "^https?://.*",
           resourceTypes: ["main_frame", "sub_frame"],
-          responseHeaders: [{ header: "set-cookie", values: ["*-anubis-*"] }],
+          // @ts-expect-error Firefox types omit Chromium response-header conditions.
+          responseHeaders: [{
+            header: "set-cookie",
+            values: ["*-anubis-*=*"],
+            // ponytail: skip markers in values; parse headers if Anubis tokens ever contain one.
+            excludedValues: ["*=*-anubis-*"],
+          }],
         },
         action: {
           type: "redirect",
-          redirect: { url: browser.runtime.getURL("blocked.html") },
+          redirect: { regexSubstitution: `${browser.runtime.getURL("blocked.html")}#\\0` },
         },
       }],
     });
-  } else if (await browser.permissions.contains({ permissions: ["webRequestBlocking"] })) {
-    // yep, chromium does not support this
-    console.info("Using blocking webRequest (this is probably Mozilla)");
-    extraInfoSpec.push("blocking");
-  } else {
-    console.warn("Could not figure out a way to redirect to blocked page");
-  }
-
-  await browser.webRequest.onHeadersReceived.addListener(
+  }).catch((error) => console.error("Could not install Anubis redirect rule", error));
+} else {
+  // Firefox can retry the original request directly before accepting challenge cookies.
+  browser.webRequest.onHeadersReceived.addListener(
     async (details) => {
-      const url = new URL(details.url);
-
-      // For Mozilla: short-circuit and don't redirect again if we handled the host and it still challenges us
-      if (await hasHost(url.host)) return {};
-
-      const cookies = details.responseHeaders?.find((h) => h.name.toLowerCase() == "set-cookie");
-      if (!cookies?.value?.includes("-anubis-")) return {};
-
-      await addHost(url.host);
-
-      // Since we redirected to our blocked page (hopefully), now we can redirect back.
-      // If we didn't redirect, this would be a no-op.
-      // In Mozilla, we run this right before we return the blocking redirect, hopefully it runs after the redirect.
-      // In Chromium, the DNR matching on response headers would have already redirected us.
-      browser.tabs.update(details.tabId, { url: details.url });
-
-      // Will only work if we passed "blocking" to extraInfoSpec (which itself will only work if we have
-      // "webRequestBlocking" permission, which only Mozilla gives us)
-      return { redirectUrl: browser.runtime.getURL("blocked.html") };
+      // Use the same conservative name/value match as Chromium's header glob.
+      const challenge = details.responseHeaders?.some((header) =>
+        header.name.toLowerCase() === "set-cookie" &&
+        /^[^=]*-anubis-[^=]*=/i.test(header.value ?? "") &&
+        !/=.*-anubis-/i.test(header.value ?? "")
+      );
+      if (!challenge) return {};
+      if (!await addOrigin(new URL(details.url).origin)) return {};
+      return { redirectUrl: details.url };
     },
-    {
-      urls: ["*://*/*"],
-      types: ["main_frame", "sub_frame"],
-    },
-    extraInfoSpec,
+    { urls: ["*://*/*"], types: ["main_frame", "sub_frame"] },
+    ["responseHeaders", "blocking"],
   );
-})();
+}
